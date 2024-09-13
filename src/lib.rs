@@ -5,7 +5,7 @@ struct Element {
     children: Vec<Element>,
 }
 
-fn match_literal<'a>(expected: &'a str) -> impl Fn(&'a str) -> Result<(&'a str, ()), &'a str> {
+fn match_literal(expected: &'static str) -> impl Fn(&str) -> Result<(&str, ()), &str> {
     move |input| match input.split_at(expected.len()) {
         (next, rest) if next == expected => Ok((rest, ())),
         _ => Err(input),
@@ -31,6 +31,18 @@ fn identifier(input: &str) -> Result<(&str, String), &str> {
 
     let next_idx = matched.len();
     Ok((&input[next_idx..], matched))
+}
+
+fn pair<P1, P2, R1, R2>(parser1: P1, parser2: P2) -> impl Fn(&str) -> Result<(&str, (R1, R2)), &str>
+where
+    P1: Fn(&str) -> Result<(&str, R1), &str>,
+    P2: Fn(&str) -> Result<(&str, R2), &str>,
+{
+    move |input| {
+        parser1(input).and_then(|(next_input, result1)| {
+            parser2(next_input).map(|(final_input, result2)| (final_input, (result1, result2)))
+        })
+    }
 }
 
 #[cfg(test)]
@@ -64,5 +76,16 @@ mod tests {
             Err("!not at all an identifier"),
             identifier("!not at all an identifier")
         );
+    }
+
+    #[test]
+    fn pair_combinator() {
+        let tag_opener = pair(match_literal("<"), identifier);
+        assert_eq!(
+            Ok(("/>", ((), "my-first-element".to_string()))),
+            tag_opener("<my-first-element/>")
+        );
+        assert_eq!(Err("oops"), tag_opener("oops"));
+        assert_eq!(Err("!oops"), tag_opener("<!oops"));
     }
 }
