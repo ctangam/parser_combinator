@@ -20,14 +20,14 @@ where
     }
 }
 
-fn match_literal(expected: &'static str) -> impl Fn(&str) -> Result<(&str, ()), &str> {
-    move |input| match input.split_at(expected.len()) {
+fn match_literal<'a>(expected: &'static str) -> impl Parser<'a, ()> {
+    move |input: &'a str| match input.split_at(expected.len()) {
         (next, rest) if next == expected => Ok((rest, ())),
         _ => Err(input),
     }
 }
 
-fn identifier(input: &str) -> Result<(&str, String), &str> {
+fn identifier(input: &str) -> ParseResult<String> {
     let mut matched = String::new();
     let mut chars = input.chars();
 
@@ -68,6 +68,22 @@ where
     move |input| parser.parse(input).map(|(next_input, result)| (next_input, map_fn(result)))
 }
 
+fn left<'a, P1, P2, R1, R2>(parser1: P1, parser2: P2) -> impl Parser<'a, R1> 
+where
+    P1: Parser<'a, R1>,
+    P2: Parser<'a, R2>,
+{
+    map(pair(parser1, parser2), |(left, _right)| left)
+}
+
+fn right<'a, P1, P2, R1, R2>(parser1: P1, parser2: P2) -> impl Parser<'a, R2>
+where
+    P1: Parser<'a, R1>,
+    P2: Parser<'a, R2>,
+{
+    map(pair(parser1, parser2), |(_left, right)| right)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -75,14 +91,14 @@ mod tests {
     #[test]
     fn literal_parser() {
         let parse_joe = match_literal("Hello Joe!");
-        assert_eq!(Ok(("", ())), parse_joe("Hello Joe!"));
+        assert_eq!(Ok(("", ())), parse_joe.parse("Hello Joe!"));
 
         assert_eq!(
             Ok((" Hello Robert!", ())),
-            parse_joe("Hello Joe! Hello Robert!")
+            parse_joe.parse("Hello Joe! Hello Robert!")
         );
 
-        assert_eq!(Err("Hello Mike!"), parse_joe("Hello Mike!"));
+        assert_eq!(Err("Hello Mike!"), parse_joe.parse("Hello Mike!"));
     }
 
     #[test]
