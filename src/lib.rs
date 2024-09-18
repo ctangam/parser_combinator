@@ -191,6 +191,13 @@ fn space0<'a>() -> impl Parser<'a, Vec<char>> {
     zero_or_more(whitespace_char())
 }
 
+fn whitespace_wrap<'a, P, A>(parser: P) -> impl Parser<'a, A>
+where
+    P: Parser<'a, A>,
+{
+    right(space0(), left(parser, space0()))
+}
+
 fn quoted_string<'a>() -> impl Parser<'a, String> {
     right(
         match_literal("\""),
@@ -245,7 +252,7 @@ where
 }
 
 fn element<'a>() -> impl Parser<'a, Element> {
-    either(single_element(), parent_element())
+    whitespace_wrap(either(single_element(), parent_element()))
 }
 
 fn close_element<'a>(expected_name: String) -> impl Parser<'a, String> {
